@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 const symbols = ["🍒", "🍋", "🍉", "🍇", "⭐"];
 const reelsCount = 5;
-const rowsCount = 4;
+const rowsCount = 3;
 const symbolHeight = 70;
 
 const weightedSymbols = [
@@ -31,7 +31,6 @@ const weightedSymbols = [
   "🥝",
   "🥝",
   "🥝",
-  "🥝",
 ];
 
 const payoutTable = {
@@ -48,6 +47,9 @@ export default function SlotMachine() {
   const spinSoundRef = useRef<HTMLAudioElement>(null);
   const [bet, setBet] = useState(500);
   const [unit, setUnit] = useState(10000);
+  const [autoSpin, setautoSpin] = useState<boolean>(false);
+  const [fastSpin, setFastSpin] = useState(false);
+
   const [grid, setGrid] = useState(
     Array.from({ length: reelsCount }, () =>
       Array.from(
@@ -66,15 +68,26 @@ export default function SlotMachine() {
   const [highestMatch, setHighestMatch] = useState(0);
 
   const winningCombinations = [
-    Array.from({ length: reelsCount }, (_, i) => [i, 0]), // Top row
-    Array.from({ length: reelsCount }, (_, i) => [i, 1]), // Row 2
-    Array.from({ length: reelsCount }, (_, i) => [i, 2]), // Row 3
-    Array.from({ length: reelsCount }, (_, i) => [i, 3]), // Bottom row
-    Array.from({ length: reelsCount }, (_, i) => [i, i % rowsCount]), // Diagonal TL-BR
-    Array.from({ length: reelsCount }, (_, i) => [
-      i,
-      (rowsCount - 1 - i + rowsCount) % rowsCount,
-    ]), // Diagonal TR-BL
+    Array.from({ length: reelsCount }, (_, i) => [i, 0]), // Top
+    Array.from({ length: reelsCount }, (_, i) => [i, 1]), // Middle
+    Array.from({ length: reelsCount }, (_, i) => [i, 2]), // Bottom
+    [
+      [0, 0],
+      [1, 1],
+      [2, 2],
+    ],
+    [
+      [0, 2],
+      [1, 1],
+      [2, 0],
+    ],
+    [
+      [0, 0],
+      [1, 1],
+      [2, 2],
+      [3, 1],
+      [4, 0],
+    ],
   ];
 
   const checkWin = (newGrid: string[][]) => {
@@ -110,7 +123,8 @@ export default function SlotMachine() {
 
   const spin = () => {
     if (spinning || unit < bet) return;
-    spinSoundRef.current!.currentTime = .5;
+
+    spinSoundRef.current!.currentTime = 0.5;
     spinSoundRef.current?.play().catch(() => {});
 
     setUnit((prev) => prev - bet);
@@ -121,35 +135,72 @@ export default function SlotMachine() {
 
     let currentGrid = [...grid];
 
-    for (let i = 0; i < reelsCount; i++) {
-      setTimeout(() => {
+    if (fastSpin) {
+      // 💨 Fast spin: instantly generate results
+      for (let i = 0; i < reelsCount; i++) {
         const newReel = Array.from(
           { length: rowsCount },
           () =>
             weightedSymbols[Math.floor(Math.random() * weightedSymbols.length)]
         );
         currentGrid[i] = newReel;
-        setGrid([...currentGrid]);
-        setStoppedReels((prev) => {
-          const copy = [...prev];
-          copy[i] = true;
-          return copy;
-        });
+      }
 
-        if (i === reelsCount - 1) {
-          setTimeout(() => {
-            const { payout, winningCoords, highestMatch } =
-              checkWin(currentGrid);
-            setLastWinAmount(payout);
-            setWinningCoordinates(winningCoords);
-            setHighestMatch(highestMatch);
-            setUnit((prev) => prev + payout);
-            setSpinning(false);
-          }, 650);
-        }
-      }, i * 500 + 1500);
+      setGrid([...currentGrid]);
+
+      const { payout, winningCoords, highestMatch } = checkWin(currentGrid);
+      setLastWinAmount(payout);
+      setWinningCoordinates(winningCoords);
+      setHighestMatch(highestMatch);
+      setUnit((prev) => prev + payout);
+      setSpinning(false);
+    } else {
+      // 🎞 Normal spin: keep your beautiful animation
+      for (let i = 0; i < reelsCount; i++) {
+        setTimeout(() => {
+          const newReel = Array.from(
+            { length: rowsCount },
+            () =>
+              weightedSymbols[
+                Math.floor(Math.random() * weightedSymbols.length)
+              ]
+          );
+          currentGrid[i] = newReel;
+          setGrid([...currentGrid]);
+          setStoppedReels((prev) => {
+            const copy = [...prev];
+            copy[i] = true;
+            return copy;
+          });
+
+          if (i === reelsCount - 1) {
+            setTimeout(() => {
+              const { payout, winningCoords, highestMatch } =
+                checkWin(currentGrid);
+              setLastWinAmount(payout);
+              setWinningCoordinates(winningCoords);
+              setHighestMatch(highestMatch);
+              setUnit((prev) => prev + payout);
+              setSpinning(false);
+            }, 650);
+          }
+        }, i * 500 + 1500);
+      }
     }
   };
+
+  useEffect(() => {
+    let interval;
+    if (autoSpin) {
+      interval = setInterval(
+        () => {
+          spin();
+        },
+        fastSpin ? 800 : 2000
+      ); // faster interval when fast spin is on
+    }
+    return () => clearInterval(interval);
+  }, [autoSpin, spin, fastSpin]);
 
   const handleKeyUp = (e: KeyboardEvent) => {
     if ((e.key === " " || e.key === "Enter") && !spinning && unit >= bet)
@@ -165,106 +216,172 @@ export default function SlotMachine() {
   const loopScrollDistance = symbolHeight * rowsCount * 3;
 
   return (
-    <div className="p-8 text-center">
+    <div
+      className="flex items-center justify-center min-h-screen"
+      style={{
+        backgroundImage: "url('/background/fruit_background.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {" "}
       <audio ref={spinSoundRef} src="/music_effect/spinwheel.wav" />
-      <h1 className="text-3xl font-bold mb-8">🎰 Fruity Slot Machine 🎰</h1>
-
-      <div
-        className={`inline-flex justify-center gap-4 mb-8 p-2 bg-gray-100 ${
-          lastWinAmount > 0 && !spinning
-            ? "border-4 border-yellow-500 shadow-[0_0_20px_rgba(252,211,77,0.8)] rounded-xl"
-            : "border-4 border-gray-800 rounded-xl"
-        }`}
-      >
-        {grid.map((reel, reelIdx) => {
-          const isSpinning = spinning && !stoppedReels[reelIdx];
-          return (
-            <div
-              key={reelIdx}
-              className="overflow-hidden rounded-lg bg-white border border-gray-300"
-              style={{
-                width: `${symbolHeight}px`,
-                height: `${rowsCount * symbolHeight}px`,
-              }}
-            >
-              <motion.div
-                animate={
-                  isSpinning
-                    ? { y: [-symbolHeight, loopScrollDistance] }
-                    : { y: 0 }
-                }
-                transition={
-                  isSpinning
-                    ? { duration: 0.15, ease: "linear", repeat: Infinity }
-                    : { duration: 0.3, ease: [0.17, 0.67, 0.83, 0.99] }
-                }
-                className="flex flex-col items-center"
-                style={{ height: `${duplicatedArrayLength * symbolHeight}px` }}
-              >
-                {[...reel, ...reel, ...reel].map((symbol, rowIdx) => {
-                  const coordKey = `${reelIdx},${rowIdx % rowsCount}`;
-                  const isWin =
-                    !spinning && winningCoordinates.includes(coordKey);
-                  return (
-                    <div
-                      key={rowIdx}
-                      className={`flex items-center justify-center text-5xl transition-all duration-200 ${
-                        isWin
-                          ? "bg-yellow-200 border-2 rounded-md shadow-lg scale-110"
-                          : ""
-                      }`}
-                      style={{
-                        width: `${symbolHeight}px`,
-                        height: `${symbolHeight}px`,
-                      }}
-                    >
-                      {symbol}
-                    </div>
-                  );
-                })}
-              </motion.div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mb-4">
-        <div className="mx-4 text-lg font-semibold">Bet: {bet}</div>
-        <Button
-          onClick={() => setBet((prev) => Math.max(500, prev - 500))}
-          disabled={spinning}
-          className="mr-4"
-        >
-          -
-        </Button>
-        <Button onClick={spin} disabled={spinning || unit < bet}>
-          {spinning ? "Spinning..." : `Spin (${bet})`}
-        </Button>
-        <Button
-          onClick={() => setBet((prev) => prev + 500)}
-          disabled={spinning}
-          className="ml-4"
-        >
-          +
-        </Button>
-      </div>
-
-      {!spinning && lastWinAmount > 0 && (
+      <div className="bg-white/50 backdrop-blur-md p-8 rounded-2xl shadow-2xl text-center max-w-2xl w-full">
+        <h1 className="text-3xl font-bold mb-8 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+          Fruity Slot
+        </h1>
         <div
-          className={`mt-4 text-2xl font-bold animate-bounce ${
-            highestMatch === 5 ? "text-yellow-500" : "text-green-600"
+          className={`inline-flex justify-center gap-4 mb-8 p-2 bg-gray-100 ${
+            lastWinAmount > 0 && !spinning
+              ? "border-4 border-yellow-500 shadow-[0_0_20px_rgba(252,211,77,0.8)] rounded-xl"
+              : "border-4 border-gray-500 rounded-xl"
           }`}
         >
-          {highestMatch === 5
-            ? "MEGA JACKPOT! 🏆"
-            : `🎉 Total Win: ${lastWinAmount} Units! 🎉`}
+          {grid.map((reel, reelIdx) => {
+            const isSpinning = spinning && !stoppedReels[reelIdx];
+            return (
+              <div
+                key={reelIdx}
+                className="overflow-hidden rounded-lg bg-white border border-gray-300"
+                style={{
+                  width: `${symbolHeight}px`,
+                  height: `${rowsCount * symbolHeight}px`,
+                }}
+              >
+                <motion.div
+                  animate={
+                    isSpinning
+                      ? { y: [-symbolHeight, loopScrollDistance] }
+                      : { y: 0 }
+                  }
+                  transition={
+                    isSpinning
+                      ? { duration: 0.15, ease: "linear", repeat: Infinity }
+                      : { duration: 0.3, ease: [0.17, 0.67, 0.83, 0.99] }
+                  }
+                  className="flex flex-col items-center"
+                  style={{
+                    height: `${duplicatedArrayLength * symbolHeight}px`,
+                  }}
+                >
+                  {[...reel, ...reel, ...reel].map((symbol, rowIdx) => {
+                    const coordKey = `${reelIdx},${rowIdx % rowsCount}`;
+                    const isWin =
+                      !spinning && winningCoordinates.includes(coordKey);
+                    return (
+                      <div
+                        key={rowIdx}
+                        className={`flex items-center justify-center text-5xl transition-all duration-200 ${
+                          isWin
+                            ? "bg-yellow-200 border-2 rounded-md shadow-lg scale-110"
+                            : ""
+                        }`}
+                        style={{
+                          width: `${symbolHeight}px`,
+                          height: `${symbolHeight}px`,
+                        }}
+                      >
+                        {symbol}
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              </div>
+            );
+          })}
         </div>
-      )}
+        <div className="h-8 flex items-center justify-center">
+          {!spinning && lastWinAmount > 0 ? (
+            <div
+              className={`text-xl font-bold animate-bounce ${
+                highestMatch === 5 ? "text-yellow-500" : "text-green-600"
+              }`}
+            >
+              {highestMatch === 5
+                ? "MEGA JACKPOT! 🏆"
+                : `Total Win: ${lastWinAmount} `}
+            </div>
+          ) : null}
+        </div>
 
-      <div className="mt-8">
-        <p className="text-lg font-semibold">Units: {unit}</p>
-        <div className="flex justify-center gap-4 mt-2">
-          <Button onClick={() => setUnit(unit + 10000)}>Add 10000 Units</Button>
+        <div className="mb-4">
+          <div className="mx-4 text-lg font-semibold">Bet: {bet}</div>
+          <div className="flex items-center justify-center mt-4">
+            <Button
+              onClick={() => setBet((prev) => Math.max(500, prev - 500))}
+              disabled={spinning}
+              className="mr-4"
+            >
+              -
+            </Button>
+            <Button
+              style={{ backgroundColor: "transparent" }}
+              onClick={spin}
+              disabled={spinning || unit < bet}
+            >
+              {spinning ? (
+                <>
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                    style={{
+                      display: "inline-block",
+                      width: "40px",
+                      height: "40px",
+                      backgroundImage: "url('/wheel/wheel.png')",
+                      backgroundSize: "cover",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "center",
+                      borderRadius: "50%",
+                    }}
+                  ></motion.span>
+                </>
+              ) : (
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "40px",
+                    height: "40px",
+                    backgroundImage: "url('/wheel/wheel.png')",
+                    backgroundSize: "cover",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "center",
+                    borderRadius: "50%",
+                  }}
+                ></span>
+              )}
+            </Button>
+
+            <Button
+              onClick={() => setBet((prev) => prev + 500)}
+              disabled={spinning}
+              className="ml-4"
+            >
+              +
+            </Button>
+          </div>
+        </div>
+        <div className="flex justify-center gap-4 mt-4">
+          <Button onClick={() => setautoSpin((prev) => !prev)}>
+            {autoSpin ? "🛑 Stop Auto Spin" : "🔁 Start Auto Spin"}
+          </Button>
+
+          <Button onClick={() => setFastSpin((prev) => !prev)}>
+            {fastSpin ? "🐢 Normal Spin" : "⚡ Fast Spin"}
+          </Button>
+        </div>
+        <div className="mt-8">
+          <p className="text-lg font-semibold">Units: {unit}</p>
+          <div className="flex justify-center gap-4 mt-2">
+            <Button onClick={() => setUnit(unit + 10000)}>
+              Add 10000 Units
+            </Button>
+          </div>
         </div>
       </div>
     </div>
