@@ -3,37 +3,71 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
-const symbols = ["🍒", "🍋", "🍉", "🍇", "⭐"];
 const reelsCount = 5;
 const rowsCount = 3;
 const symbolHeight = 70;
 
-const weightedSymbols = [
-  "⭐",
-  "🍉",
-  "🍉",
-  "🍇",
-  "🍇",
-  "🍋",
-  "🍋",
-  "🍋",
-  "🍒",
-  "🍒",
-  "🍒",
-  "🍒",
-  "🍍",
-  "🍍",
-  "🍍",
-  "🍍",
-  "🍍",
-  "🥝",
-  "🥝",
-  "🥝",
-  "🥝",
-  "🥝",
+type SymbolEmoji = keyof typeof symbolImages; // "⭐" | "🍉" | ...
+type SymbolName =
+  | "star"
+  | "watermelon"
+  | "grape"
+  | "lemon"
+  | "cherry"
+  | "pineapple"
+  | "kiwi";
+
+const symbolToNameMap: Record<SymbolEmoji, SymbolName> = {
+  "⭐": "star",
+  "🍉": "watermelon",
+  "🍇": "grape",
+  "🍋": "lemon",
+  "🍒": "cherry",
+  "🍍": "pineapple",
+  "🥝": "kiwi",
+};
+
+const symbolImages = {
+  "⭐": "/symbols/star.png",
+  "🍉": "/symbols/watermelon.png",
+  "🍇": "/symbols/grape.png",
+  "🍋": "/symbols/lemon.png",
+  "🍒": "/symbols/cherry.png",
+  "🍍": "/symbols/pineapple.png",
+  "🥝": "/symbols/kiwi.png",
+};
+
+type WeightedSymbols = {
+  name : SymbolName ,
+  image : string
+}
+
+const weightedSymbols : WeightedSymbols[] = [
+  { name: "star", image: "/symbols/star.png" },
+  { name: "watermelon", image: "/symbols/watermelon.png" },
+  { name: "watermelon", image: "/symbols/watermelon.png" },
+  { name: "grape", image: "/symbols/grape.png" },
+  { name: "grape", image: "/symbols/grape.png" },
+  { name: "lemon", image: "/symbols/lemon.png" },
+  { name: "lemon", image: "/symbols/lemon.png" },
+  { name: "lemon", image: "/symbols/lemon.png" },
+  { name: "cherry", image: "/symbols/cherry.png" },
+  { name: "cherry", image: "/symbols/cherry.png" },
+  { name: "cherry", image: "/symbols/cherry.png" },
+  { name: "cherry", image: "/symbols/cherry.png" },
+  { name: "pineapple", image: "/symbols/pineapple.png" },
+  { name: "pineapple", image: "/symbols/pineapple.png" },
+  { name: "pineapple", image: "/symbols/pineapple.png" },
+  { name: "pineapple", image: "/symbols/pineapple.png" },
+  { name: "pineapple", image: "/symbols/pineapple.png" },
+  { name: "kiwi", image: "/symbols/kiwi.png" },
+  { name: "kiwi", image: "/symbols/kiwi.png" },
+  { name: "kiwi", image: "/symbols/kiwi.png" },
+  { name: "kiwi", image: "/symbols/kiwi.png" },
+  { name: "kiwi", image: "/symbols/kiwi.png" },
 ];
 
-const payoutTable = {
+const payoutTable: Record<SymbolEmoji, Record<3 | 4 | 5, number>> = {
   "⭐": { 5: 500, 4: 100, 3: 10 },
   "🍉": { 5: 200, 4: 40, 3: 5 },
   "🍇": { 5: 150, 4: 30, 3: 3 },
@@ -90,36 +124,46 @@ export default function SlotMachine() {
     ],
   ];
 
-  const checkWin = (newGrid: string[][]) => {
-    let totalPayout = 0;
-    let maxMatch = 0;
-    const coords = new Set<string>();
+const checkWin = (newGrid: WeightedSymbols[][]) => {
+  let totalPayout = 0;
+  let maxMatch = 0;
+  const coords = new Set<string>();
 
-    for (const combo of winningCombinations) {
-      const lineSymbols = combo.map(([r, c]) => newGrid[r][c]);
-      const first = lineSymbols[0];
-      let consecutive = 1;
-      for (let i = 1; i < lineSymbols.length; i++) {
-        if (lineSymbols[i] === first) consecutive++;
-        else break;
-      }
-      if (consecutive >= 3) {
-        const multiplier = payoutTable[first]?.[consecutive];
-        if (multiplier) {
-          totalPayout += bet * multiplier;
-          maxMatch = Math.max(maxMatch, consecutive);
-          for (let i = 0; i < consecutive; i++)
-            coords.add(`${combo[i][0]},${combo[i][1]}`);
+  for (const combo of winningCombinations) {
+    const lineSymbols = combo.map(([r, c]) => newGrid[r][c]);
+    const first = lineSymbols[0];
+    let consecutive = 1;
+
+    for (let i = 1; i < lineSymbols.length; i++) {
+      if (lineSymbols[i].name === first.name) consecutive++;
+      else break;
+    }
+
+    if (consecutive >= 3) {
+      const symbolKey = (Object.keys(symbolImages) as SymbolEmoji[]).find(
+        (key) => symbolImages[key] === first.image
+      );
+
+      if (!symbolKey) continue;
+
+      const multiplier = payoutTable[symbolKey]?.[consecutive as 3 | 4 | 5];
+
+      if (multiplier) {
+        totalPayout += bet * multiplier;
+        maxMatch = Math.max(maxMatch, consecutive);
+        for (let i = 0; i < consecutive; i++) {
+          coords.add(`${combo[i][0]},${combo[i][1]}`);
         }
       }
     }
+  }
 
-    return {
-      payout: totalPayout,
-      highestMatch: maxMatch,
-      winningCoords: Array.from(coords),
-    };
+  return {
+    payout: totalPayout,
+    highestMatch: maxMatch,
+    winningCoords: Array.from(coords),
   };
+};
 
   const spin = () => {
     if (spinning || unit < bet) return;
@@ -155,7 +199,6 @@ export default function SlotMachine() {
       setUnit((prev) => prev + payout);
       setSpinning(false);
     } else {
-      // 🎞 Normal spin: keep your beautiful animation
       for (let i = 0; i < reelsCount; i++) {
         setTimeout(() => {
           const newReel = Array.from(
@@ -190,7 +233,7 @@ export default function SlotMachine() {
   };
 
   useEffect(() => {
-    let interval;
+    let interval: any;
     if (autoSpin) {
       interval = setInterval(
         () => {
@@ -282,7 +325,20 @@ export default function SlotMachine() {
                           height: `${symbolHeight}px`,
                         }}
                       >
-                        {symbol}
+                        <img
+                          src={symbol.image}
+                          alt={symbol.name}
+                          className={`w-[${symbolHeight}px] h-[${symbolHeight}px] object-contain`}
+                          style={{
+                            width: `${symbolHeight}px`,
+                            height: `${symbolHeight}px`,
+                            filter: isWin
+                              ? "drop-shadow(0 0 10px gold)"
+                              : "none",
+                            transform: isWin ? "scale(1.1)" : "scale(1)",
+                            transition: "all 0.2s ease-in-out",
+                          }}
+                        />
                       </div>
                     );
                   })}
@@ -367,8 +423,11 @@ export default function SlotMachine() {
           </div>
         </div>
         <div className="flex justify-center gap-4 mt-4">
-          <Button onClick={() => setautoSpin((prev) => !prev)}>
-            {autoSpin ? "🛑 Stop Auto Spin" : "🔁 Start Auto Spin"}
+          <Button onClick={() => setautoSpin((prev) => !prev)}
+          style={{backgroundColor:autoSpin ? "red" : "black"
+          }}
+            >
+            {autoSpin ? "Stop Auto Spin" : " Start Auto Spin"}
           </Button>
 
           <Button onClick={() => setFastSpin((prev) => !prev)}>
